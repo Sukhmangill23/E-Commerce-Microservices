@@ -1,0 +1,87 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # User Service
+  user-service:
+    build: ./user-service
+    ports:
+      - "5001:5001"
+    environment:
+      DATABASE_URL: postgresql://user:password@postgres:5432/postgres
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET_KEY: super-secret-jwt-key-change-in-production
+      FLASK_APP: app.main:app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: python -m flask run --host=0.0.0.0 --port=5001
+
+  # Product Service
+  product-service:
+    build: ./product-service
+    ports:
+      - "5002:5002"
+    environment:
+      DATABASE_URL: postgresql://user:password@postgres:5432/postgres
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET_KEY: super-secret-jwt-key-change-in-production
+      FLASK_APP: app.main:app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: python -m flask run --host=0.0.0.0 --port=5002
+
+  # Order Service
+  order-service:
+    build: ./order-service
+    ports:
+      - "5003:5003"
+    environment:
+      DATABASE_URL: postgresql://user:password@postgres:5432/postgres
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET_KEY: super-secret-jwt-key-change-in-production
+      PRODUCT_SERVICE_URL: http://product-service:5002
+      FLASK_APP: app.main:app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      product-service:
+        condition: service_started
+    command: python -m flask run --host=0.0.0.0 --port=5003
+
+volumes:
+  postgres_data:
