@@ -43,12 +43,21 @@ REGISTER_RESPONSE=$(curl -s -X POST http://localhost:5001/api/users/register \
 
 echo "$REGISTER_RESPONSE" | $JQ_CMD
 
-# Extract token
+# Extract token - improved logic
 if command -v jq &> /dev/null; then
     TOKEN=$(echo "$REGISTER_RESPONSE" | jq -r '.tokens.access_token')
 else
-    # Fallback: extract token without jq
-    TOKEN=$(echo "$REGISTER_RESPONSE" | grep -o '"access_token":"[^"]*' | sed 's/"access_token":"//')
+    # Better fallback using grep and sed
+    TOKEN=$(echo "$REGISTER_RESPONSE" | grep -o '"access_token":"[^"]*"' | sed 's/"access_token":"\([^"]*\)"/\1/')
+fi
+
+# Check if token was extracted
+if [ -z "$TOKEN" ] || [ "$TOKEN" == "null" ]; then
+    echo ""
+    echo "❌ ERROR: Failed to extract token from registration response"
+    echo "Response was: $REGISTER_RESPONSE"
+    echo ""
+    exit 1
 fi
 
 echo ""

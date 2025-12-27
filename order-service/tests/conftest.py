@@ -1,45 +1,51 @@
 import pytest
 import sys
 import os
-import importlib.util
 
-# Manually import by loading the module
+# Add the parent directory to the path so we can import the app
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-
-# Import main.py
-main_spec = importlib.util.spec_from_file_location(
-    "main",
-    os.path.join(os.path.dirname(os.path.dirname(__file__)), "app", "main.py")
-)
-main = importlib.util.module_from_spec(main_spec)
-main_spec.loader.exec_module(main)
-
-# Import database.py
-database_spec = importlib.util.spec_from_file_location(
-    "database",
-    os.path.join(os.path.dirname(os.path.dirname(__file__)), "app", "database.py")
-)
-database = importlib.util.module_from_spec(database_spec)
-database_spec.loader.exec_module(database)
-
-flask_app = main.app
-_db = database.db
 
 
 @pytest.fixture(scope='function')
 def app():
     """Create application for testing"""
-    flask_app.config['TESTING'] = True
-    flask_app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///:memory:'
-    flask_app.config['REDIS_URL'] = 'redis://localhost:6379/3'
-    flask_app.config['JWT_SECRET_KEY'] = 'test-secret-key'
-    flask_app.config['PRODUCT_SERVICE_URL'] = 'http://test-product-service'
+    from app.main import create_app
+    from app.database import db as _db, redis_client
+
+    test_config = {
+        'TESTING': True,
+        'SQLALCHEMY_DATABASE_URI': 'sqlite:///:memory:',
+        'REDIS_URL': 'redis://localhost:6379/3',  # Different Redis DB
+        'JWT_SECRET_KEY': 'test-secret-key',
+        'PRODUCT_SERVICE_URL': 'http://test-product-service',
+        'RATELIMIT_ENABLED': False,
+        'AUTO_CREATE_TABLES': False,  # Disable auto-creation in tests
+    }
+
+    flask_app = create_app(test_config)
 
     with flask_app.app_context():
+        # Explicitly create tables in test fixture
         _db.create_all()
+
+        # Clear Redis cache before each test
+        try:
+            redis_client.flushdb()
+        except:
+            pass
+
         yield flask_app
+
+        # Properly clean up
+        _db.session.rollback()
         _db.session.remove()
         _db.drop_all()
+
+        # Clear Redis after test
+        try:
+            redis_client.flushdb()
+        except:
+            pass
 
 
 @pytest.fixture(scope='function')
@@ -51,6 +57,7 @@ def client(app):
 @pytest.fixture(scope='function')
 def db(app):
     """Create database for testing"""
+    from app.database import db as _db
     return _db
 
 
@@ -58,7 +65,6 @@ def db(app):
 def sample_order_data():
     """Sample order data for testing"""
     return {
-        'user_id': 1,
         'products': [
             {
                 'product_id': 1,
@@ -66,10 +72,3 @@ def sample_order_data():
             }
         ]
     }
-
-
-@pytest.fixture
-def auth_token():
-    """Mock JWT token for testing"""
-    import flask_jwt_extended
-    return flask_jwt_extended.create_access_token(identity=1)

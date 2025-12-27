@@ -39,6 +39,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       JWT_SECRET_KEY: super-secret-jwt-key-change-in-production
       FLASK_APP: app.main:app
+      AUTO_CREATE_TABLES: "true"  # Enable auto table creation in Docker
     depends_on:
       postgres:
         condition: service_healthy
@@ -56,6 +57,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       JWT_SECRET_KEY: super-secret-jwt-key-change-in-production
       FLASK_APP: app.main:app
+      AUTO_CREATE_TABLES: "true"  # Enable auto table creation in Docker
     depends_on:
       postgres:
         condition: service_healthy
@@ -74,6 +76,7 @@ services:
       JWT_SECRET_KEY: super-secret-jwt-key-change-in-production
       PRODUCT_SERVICE_URL: http://product-service:5002
       FLASK_APP: app.main:app
+      AUTO_CREATE_TABLES: "true"  # Enable auto table creation in Docker
     depends_on:
       postgres:
         condition: service_healthy
